@@ -1,34 +1,43 @@
 {
-  "destination": "detailScreen",
-  "windowSizingX": "fixed",
-  "windowSizingY": "fixed",
-  "windowMinWidth": 1200,
-  "windowMinHeight": 800,
-  "rightMargin": 0,
-  "bottomMargin": 0,
-  "events": ["onLoad"],
-  "method": "ObjectMethods/form.4dm",
-  "pages": [
-    {
-      "objects": {}
-    },
-    {
-      "objects": {
-        "WebArea": {
-          "type": "webArea",
-          "left": 0,
-          "top": 0,
-          "width": 1200,
-          "height": 800,
-          "sizingX": "grow",
-          "sizingY": "grow",
-          "url": "",
-          "progressSource": "",
-          "urlSource": "",
-          "currentURLSource": "",
-          "events": ["onLoad"]
-        }
-      }
-    }
-  ]
+	"destination": "detailScreen",
+	"windowSizingX": "fixed",
+	"windowSizingY": "fixed",
+	"windowMinWidth": 1200,
+	"windowMinHeight": 800,
+	"rightMargin": 0,
+	"bottomMargin": 0,
+	"events": [
+		"onLoad"
+	],
+	"method": "ObjectMethods/form.4dm",
+	"pages": [
+		{
+			"objects": {}
+		},
+		{
+			"objects": {
+				"WebArea": {
+					"type": "webArea",
+					"left": 0,
+					"top": 0,
+					"width": 1200,
+					"height": 800,
+					"sizingX": "grow",
+					"sizingY": "grow",
+					"url": "",
+					"progressSource": "",
+					"urlSource": "",
+					"currentURLSource": "",
+					"events": [
+						"onLoad"
+					],
+					"webEngine": "embedded"
+				}
+			}
+		}
+	],
+	"$4d": {
+		"version": "1",
+		"kind": "form"
+	}
 }
