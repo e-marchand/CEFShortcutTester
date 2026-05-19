@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE base SYSTEM "http://www.4d.com/dtd/2007/base.dtd" >
+<base name="CEFShortcutTest" uuid="09B3BD0C48A74D0BA05F6B03B1B1D1E6" collation_locale="en">
+	<schema name="DEFAULT_SCHEMA"/>
+</base>

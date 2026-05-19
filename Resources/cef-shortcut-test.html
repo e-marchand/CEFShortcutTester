@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CEF Shortcut Tester</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 6px; color: #00d4ff; font-size: 1.4em; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 16px; font-size: 0.85em; }
+
+  .layout { display: flex; gap: 16px; height: calc(100vh - 100px); }
+  .table-panel { flex: 1; overflow-y: auto; }
+  .log-panel { width: 340px; display: flex; flex-direction: column; }
+
+  .last-shortcut {
+    background: #16213e; border: 2px solid #0f3460; border-radius: 8px;
+    padding: 14px; text-align: center; margin-bottom: 12px; min-height: 70px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .last-shortcut .label { font-size: 0.75em; color: #888; margin-bottom: 4px; }
+  .last-shortcut .keys { font-size: 1.6em; font-weight: bold; color: #00d4ff; }
+  .last-shortcut .status { font-size: 0.8em; margin-top: 4px; }
+  .last-shortcut .status.prevented { color: #ff6b6b; }
+  .last-shortcut .status.passthrough { color: #51cf66; }
+
+  .log-box {
+    flex: 1; background: #0d1117; border: 1px solid #333; border-radius: 6px;
+    padding: 8px; overflow-y: auto; font-size: 0.78em; line-height: 1.5;
+  }
+  .log-box .entry { border-bottom: 1px solid #1a1a2e; padding: 3px 0; }
+  .log-box .entry.prevented { color: #ff6b6b; }
+  .log-box .entry.passthrough { color: #51cf66; }
+  .log-box .timestamp { color: #555; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+  thead { position: sticky; top: 0; z-index: 1; }
+  th { background: #16213e; color: #00d4ff; padding: 8px 6px; text-align: left; border-bottom: 2px solid #0f3460; }
+  td { padding: 6px; border-bottom: 1px solid #222; }
+  tr:hover { background: #16213e44; }
+  tr.hit { animation: flash 0.5s ease; }
+  @keyframes flash { 0% { background: #0f346088; } 100% { background: transparent; } }
+  tr.last-hit { background: #0f346044; }
+
+  .shortcut-key {
+    display: inline-block; background: #2a2a4a; border: 1px solid #444; border-radius: 4px;
+    padding: 2px 7px; font-family: monospace; font-size: 0.95em; color: #fff;
+  }
+  .shortcut-key + .shortcut-key { margin-left: 2px; }
+
+  .check-col { width: 50px; text-align: center; }
+  .hit-col { width: 40px; text-align: center; }
+  .hit-indicator { font-size: 1.1em; }
+  .count-col { width: 50px; text-align: center; color: #888; }
+
+  input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: #ff6b6b; }
+
+  .controls { display: flex; gap: 8px; margin-bottom: 8px; }
+  .controls button {
+    padding: 5px 12px; border: 1px solid #444; border-radius: 4px;
+    background: #16213e; color: #ccc; cursor: pointer; font-size: 0.8em;
+  }
+  .controls button:hover { background: #0f3460; color: #fff; }
+
+  .category { background: #0f3460; color: #00d4ff; font-weight: bold; }
+  .category td { padding: 4px 6px; font-size: 0.8em; letter-spacing: 0.5px; }
+</style>
+</head>
+<body>
+
+<h1>CEF Shortcut Tester</h1>
+<p class="subtitle">Press shortcuts to test if CEF intercepts them. Toggle preventDefault per shortcut.</p>
+
+<div class="layout">
+  <div class="table-panel">
+    <div class="controls">
+      <button onclick="checkAll(true)">Check All</button>
+      <button onclick="checkAll(false)">Uncheck All</button>
+      <button onclick="resetCounts()">Reset Counts</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th class="check-col">Block</th>
+          <th>Shortcut</th>
+          <th>Description</th>
+          <th class="hit-col">Hit</th>
+          <th class="count-col">#</th>
+        </tr>
+      </thead>
+      <tbody id="shortcut-body"></tbody>
+    </table>
+  </div>
+
+  <div class="log-panel">
+    <div class="last-shortcut" id="last-box">
+      <div class="label">LAST SHORTCUT</div>
+      <div class="keys" id="last-keys">—</div>
+      <div class="status" id="last-status"></div>
+    </div>
+    <div class="controls">
+      <button onclick="clearLog()">Clear Log</button>
+    </div>
+    <div class="log-box" id="log-box"></div>
+  </div>
+</div>
+
+<script>
+const shortcuts = [
+  { cat: "Tab / Window Management" },
+  { keys: ["Ctrl","W"], desc: "Close current tab" },
+  { keys: ["Ctrl","Shift","W"], desc: "Close all tabs / window" },
+  { keys: ["Ctrl","T"], desc: "New tab" },
+  { keys: ["Ctrl","Shift","T"], desc: "Reopen closed tab" },
+  { keys: ["Ctrl","N"], desc: "New window" },
+  { keys: ["Ctrl","Shift","N"], desc: "New incognito window" },
+  { keys: ["Ctrl","Tab"], desc: "Next tab" },
+  { keys: ["Ctrl","Shift","Tab"], desc: "Previous tab" },
+  { keys: ["Ctrl","1"], desc: "Switch to tab 1" },
+  { keys: ["Ctrl","2"], desc: "Switch to tab 2" },
+  { keys: ["Ctrl","3"], desc: "Switch to tab 3" },
+  { keys: ["Ctrl","4"], desc: "Switch to tab 4" },
+  { keys: ["Ctrl","5"], desc: "Switch to tab 5" },
+  { keys: ["Ctrl","6"], desc: "Switch to tab 6" },
+  { keys: ["Ctrl","7"], desc: "Switch to tab 7" },
+  { keys: ["Ctrl","8"], desc: "Switch to tab 8" },
+  { keys: ["Ctrl","9"], desc: "Switch to last tab" },
+  { keys: ["Alt","F4"], desc: "Close window" },
+
+  { cat: "Navigation" },
+  { keys: ["Ctrl","L"], desc: "Focus address bar" },
+  { keys: ["Ctrl","O"], desc: "Open file" },
+  { keys: ["Alt","Left"], desc: "Back" },
+  { keys: ["Alt","Right"], desc: "Forward" },
+  { keys: ["Alt","Home"], desc: "Home page" },
+  { keys: ["F5"], desc: "Reload" },
+  { keys: ["Ctrl","R"], desc: "Reload" },
+  { keys: ["Ctrl","Shift","R"], desc: "Hard reload (bypass cache)" },
+  { keys: ["Ctrl","F5"], desc: "Hard reload" },
+  { keys: ["Escape"], desc: "Stop loading" },
+
+  { cat: "Page Actions" },
+  { keys: ["Ctrl","F"], desc: "Find in page" },
+  { keys: ["Ctrl","G"], desc: "Find next" },
+  { keys: ["Ctrl","Shift","G"], desc: "Find previous" },
+  { keys: ["Ctrl","P"], desc: "Print" },
+  { keys: ["Ctrl","S"], desc: "Save page" },
+  { keys: ["Ctrl","D"], desc: "Bookmark page" },
+  { keys: ["Ctrl","U"], desc: "View source" },
+
+  { cat: "Zoom" },
+  { keys: ["Ctrl","+"], desc: "Zoom in" },
+  { keys: ["Ctrl","="], desc: "Zoom in (alt)" },
+  { keys: ["Ctrl","-"], desc: "Zoom out" },
+  { keys: ["Ctrl","0"], desc: "Reset zoom" },
+
+  { cat: "Developer Tools" },
+  { keys: ["F12"], desc: "Toggle dev tools" },
+  { keys: ["Ctrl","Shift","I"], desc: "Open dev tools" },
+  { keys: ["Ctrl","Shift","J"], desc: "Open console" },
+  { keys: ["Ctrl","Shift","C"], desc: "Inspect element" },
+
+  { cat: "Browser Features" },
+  { keys: ["Ctrl","H"], desc: "History" },
+  { keys: ["Ctrl","J"], desc: "Downloads" },
+  { keys: ["Ctrl","Shift","Delete"], desc: "Clear browsing data" },
+  { keys: ["F11"], desc: "Fullscreen" },
+  { keys: ["Ctrl","Shift","B"], desc: "Toggle bookmarks bar" },
+  { keys: ["Ctrl","E"], desc: "Search from address bar" },
+  { keys: ["Ctrl","K"], desc: "Search from address bar (alt)" },
+
+  { cat: "Text Editing (sometimes intercepted)" },
+  { keys: ["Ctrl","A"], desc: "Select all" },
+  { keys: ["Ctrl","C"], desc: "Copy" },
+  { keys: ["Ctrl","V"], desc: "Paste" },
+  { keys: ["Ctrl","X"], desc: "Cut" },
+  { keys: ["Ctrl","Z"], desc: "Undo" },
+  { keys: ["Ctrl","Shift","Z"], desc: "Redo" },
+  { keys: ["Ctrl","Y"], desc: "Redo (alt)" },
+];
+
+const tbody = document.getElementById("shortcut-body");
+const logBox = document.getElementById("log-box");
+const lastKeys = document.getElementById("last-keys");
+const lastStatus = document.getElementById("last-status");
+let shortcutRows = {};
+let hitCounts = {};
+let lastHitRow = null;
+
+function makeId(keys) {
+  return keys.map(k => k.toLowerCase()).join("+");
+}
+
+function renderKeys(keys) {
+  return keys.map(k => `<span class="shortcut-key">${k}</span>`).join(" ");
+}
+
+shortcuts.forEach((s, i) => {
+  if (s.cat) {
+    const tr = document.createElement("tr");
+    tr.className = "category";
+    tr.innerHTML = `<td colspan="5">${s.cat}</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+  const id = makeId(s.keys);
+  hitCounts[id] = 0;
+  const tr = document.createElement("tr");
+  tr.dataset.id = id;
+  tr.innerHTML = `
+    <td class="check-col"><input type="checkbox" data-id="${id}" checked></td>
+    <td>${renderKeys(s.keys)}</td>
+    <td>${s.desc}</td>
+    <td class="hit-col"><span class="hit-indicator" id="hit-${id}"></span></td>
+    <td class="count-col" id="count-${id}">0</td>
+  `;
+  tbody.appendChild(tr);
+  shortcutRows[id] = tr;
+});
+
+function checkAll(state) {
+  document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = state);
+}
+
+function resetCounts() {
+  Object.keys(hitCounts).forEach(id => {
+    hitCounts[id] = 0;
+    document.getElementById("count-" + id).textContent = "0";
+    document.getElementById("hit-" + id).textContent = "";
+  });
+  if (lastHitRow) lastHitRow.classList.remove("last-hit");
+}
+
+function clearLog() {
+  logBox.innerHTML = "";
+}
+
+function addLog(text, prevented) {
+  const div = document.createElement("div");
+  div.className = "entry " + (prevented ? "prevented" : "passthrough");
+  const now = new Date();
+  const ts = now.toLocaleTimeString("en-US", { hour12: false }) + "." + String(now.getMilliseconds()).padStart(3, "0");
+  div.innerHTML = `<span class="timestamp">${ts}</span> ${text}`;
+  logBox.prepend(div);
+}
+
+function normalizeKey(key) {
+  const map = { "arrowleft": "left", "arrowright": "right", "arrowup": "up", "arrowdown": "down" };
+  return map[key.toLowerCase()] || key.toLowerCase();
+}
+
+document.addEventListener("keydown", function(e) {
+  const parts = [];
+  if (e.ctrlKey || e.metaKey) parts.push("ctrl");
+  if (e.shiftKey) parts.push("shift");
+  if (e.altKey) parts.push("alt");
+
+  let key = normalizeKey(e.key);
+  if (["control","shift","alt","meta"].includes(key)) return;
+
+  if (key === " ") key = "space";
+  if (key === "+" || (e.shiftKey && key === "=")) key = "+";
+  parts.push(key);
+
+  const id = parts.join("+");
+  const displayParts = [];
+  if (e.ctrlKey || e.metaKey) displayParts.push("Ctrl");
+  if (e.shiftKey) displayParts.push("Shift");
+  if (e.altKey) displayParts.push("Alt");
+  displayParts.push(e.key === " " ? "Space" : e.key.length === 1 ? e.key.toUpperCase() : e.key);
+  const displayStr = displayParts.join(" + ");
+
+  const row = shortcutRows[id];
+  let prevented = false;
+
+  if (row) {
+    const cb = row.querySelector('input[type="checkbox"]');
+    if (cb && cb.checked) {
+      e.preventDefault();
+      e.stopPropagation();
+      prevented = true;
+    }
+    hitCounts[id]++;
+    document.getElementById("count-" + id).textContent = hitCounts[id];
+    document.getElementById("hit-" + id).textContent = "✓";
+
+    if (lastHitRow) lastHitRow.classList.remove("last-hit");
+    row.classList.remove("hit");
+    void row.offsetWidth;
+    row.classList.add("hit", "last-hit");
+    lastHitRow = row;
+    row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  lastKeys.textContent = displayStr;
+  lastStatus.textContent = prevented ? "BLOCKED (preventDefault)" : (row ? "DETECTED (passthrough)" : "NOT IN LIST");
+  lastStatus.className = "status " + (prevented ? "prevented" : "passthrough");
+
+  const statusTag = prevented ? "[BLOCKED]" : (row ? "[PASS]" : "[UNLISTED]");
+  addLog(`${statusTag} <strong>${displayStr}</strong>`, prevented);
+});
+</script>
+</body>
+</html>
